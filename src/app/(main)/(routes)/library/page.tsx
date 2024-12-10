@@ -1,22 +1,27 @@
-import { currentUser, auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { auth, currentUser } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import { BookUpload } from "../../../../components/library/book-upload";
+import { BookGrid } from "../../../../components/library/book-grid";
+import { getUserBooks } from "../../../../lib/books";
 
 export default async function LibraryPage() {
   const { userId } = await auth();
   const user = await currentUser();
 
-  if (!userId || !user) {
-    redirect("/sign-in");
-  }
+  if (!userId || !user) redirect("/sign-in");
 
-  // Check if user exists in our database
   let dbUser = await prisma.user.findUnique({
     where: { clerkId: userId },
-    include: { library: true },
+    include: {
+      library: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+    },
   });
 
-  // If user doesn't exist in our database, create them
   if (!dbUser) {
     dbUser = await prisma.user.create({
       data: {
@@ -27,23 +32,15 @@ export default async function LibraryPage() {
     });
   }
 
+  const books = await getUserBooks(userId);
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-8 text-blue-600">My Library</h1>
-      {dbUser.library.length === 0 ? (
-        <p>No books in your library yet.</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {dbUser.library.map((book) => (
-            <div key={book.id} className="border rounded-lg p-4">
-              <h3 className="font-semibold">{book.title}</h3>
-              {book.author && (
-                <p className="text-sm text-gray-600">{book.author}</p>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+    <div className="container mx-auto py-8 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">My Library</h1>
+        <BookUpload />
+      </div>
+      <BookGrid books={books} />
     </div>
   );
 }
